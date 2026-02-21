@@ -9,7 +9,7 @@ use std::thread;
 
 fn handle_client(mut stream: TcpStream) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
-    stream.write(b"The server is ready...\n").unwrap();
+    stream.write(b"220 The server is ready...\n").unwrap();
 
     loop {
         let mut command = String::new();
@@ -28,7 +28,7 @@ fn handle_client(mut stream: TcpStream) {
         match parts[0].to_uppercase().as_str() {
             "USER" => {
                 stream
-                    .write_all(b"Username is correct. Enter password for authentication.\r\n")
+                    .write_all(b"331 Username is correct. Enter password for authentication.\r\n")
                     .unwrap();
             }
             "PASS" => {
@@ -52,10 +52,15 @@ fn handle_client(mut stream: TcpStream) {
                     let dirs_response_line = format!("{}", file_name);
                     stream.write_all(dirs_response_line.as_bytes()).unwrap();
                 }
+                stream
+                    .write_all(b"226 Directory fetched successfully.\r\n")
+                    .unwrap();
             }
             "RETR" => {
                 if parts.len() < 2 {
-                    stream.write_all(b"File is not specified...\r\n").unwrap();
+                    stream
+                        .write_all(b"226 File is not specified...\r\n")
+                        .unwrap();
                     continue;
                 }
                 let filename = parts[1];
@@ -72,11 +77,13 @@ fn handle_client(mut stream: TcpStream) {
                 }
             }
             "QUIT" => {
-                stream.write_all(b"leaving the ftp server....\r\n").unwrap();
+                stream
+                    .write_all(b"221 leaving the ftp server....\r\n")
+                    .unwrap();
                 break;
             }
             _ => {
-                stream.write_all(b"Command is not specified..").unwrap();
+                stream.write_all(b"502 Command is not specified..").unwrap();
             }
         }
     }
