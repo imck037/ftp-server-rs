@@ -9,7 +9,7 @@ use std::thread;
 
 fn handle_client(mut stream: TcpStream) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
-    stream.write(b"220 The server is ready...\n").unwrap();
+    stream.write_all(b"220 The server is ready...\n").unwrap();
 
     loop {
         let mut command = String::new();
@@ -33,6 +33,9 @@ fn handle_client(mut stream: TcpStream) {
             }
             "PASS" => {
                 stream.write_all(b"230 Login Successfull.\r\n").unwrap();
+            }
+            "SYST" => {
+                stream.write_all(b"215 UNIX Type: L8\r\n").unwrap();
             }
             "PWD" => {
                 let dir = env::current_dir().unwrap();
