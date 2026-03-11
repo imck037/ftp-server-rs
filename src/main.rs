@@ -1,10 +1,7 @@
 use std::env;
 use std::fs;
-use std::io::BufRead;
-use std::io::BufReader;
-use std::io::Write;
-use std::net::TcpListener;
-use std::net::TcpStream;
+use std::io::{BufRead, BufReader, Write};
+use std::net::{TcpListener, TcpStream};
 use std::thread;
 
 fn handle_client(mut stream: TcpStream) {
@@ -36,6 +33,10 @@ fn handle_client(mut stream: TcpStream) {
             }
             "SYST" => {
                 stream.write_all(b"215 UNIX Type: L8\r\n").unwrap();
+            }
+            "PASV" => {
+                let new_stream = handle_pasv(&stream);
+                println!("Client connected to {}", new_stream.peer_addr().unwrap());
             }
             "PWD" => {
                 let dir = env::current_dir().unwrap();
@@ -91,6 +92,21 @@ fn handle_client(mut stream: TcpStream) {
         }
     }
     println!("Client disconnect..");
+}
+
+fn handle_pasv(mut stream: &TcpStream) -> TcpStream {
+    let data_socket = TcpListener::bind("0.0.0.0:0").expect("Unable open new port.");
+
+    let port = data_socket.local_addr().unwrap().port();
+
+    let p1 = port / 256;
+    let p2 = port % 256;
+    let ip = "127,0,0,1";
+
+    let response = format!("227 Entering Passive Mode ({ip},{p1},{p2})\r\n");
+    stream.write_all(response.as_bytes()).unwrap();
+    let (new_stream, _) = data_socket.accept().unwrap();
+    new_stream
 }
 
 fn main() {
