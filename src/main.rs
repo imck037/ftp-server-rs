@@ -89,6 +89,62 @@ fn handle_client(mut stream: TcpStream) {
                     .write_all(b"226 Directory fetched successfully.\r\n")
                     .unwrap();
             }
+            "MKD" => {
+                if parts.len() < 2 {
+                    stream.write_all(b"Directory name is needed\r\n").unwrap();
+                }
+                let dir = fs::create_dir(parts[1]);
+                match dir {
+                    Ok(_) => stream
+                        .write_all(b"257 Directory created successfully.\r\n")
+                        .unwrap(),
+                    Err(_) => stream
+                        .write_all(b"500 Cannot create directory.\r\n")
+                        .unwrap(),
+                }
+            }
+            "RMD" => {
+                if parts.len() < 2 {
+                    stream.write_all(b"Directory name is needed\r\n").unwrap();
+                }
+                let dir = fs::remove_dir_all(parts[1]);
+                match dir {
+                    Ok(_) => stream
+                        .write_all(b"250 Directory removed successfully.\r\n")
+                        .unwrap(),
+                    Err(_) => stream
+                        .write_all(b"500 Cannot remove directory.\r\n")
+                        .unwrap(),
+                }
+            }
+            "DELE" => {
+                if parts.len() < 2 {
+                    stream.write_all(b"File name is needed\r\n").unwrap();
+                }
+                let dir = fs::remove_file(parts[1]);
+                match dir {
+                    Ok(_) => stream
+                        .write_all(b"250 file removed successfully.\r\n")
+                        .unwrap(),
+                    Err(_) => stream
+                        .write_all(b"550 Cannot remove file or permission denied.\r\n")
+                        .unwrap(),
+                }
+            }
+            "SIZE" => {
+                if parts.len() < 2 {
+                    stream.write_all(b"File name is needed\r\n").unwrap();
+                }
+                let metadata = fs::metadata(parts[1]);
+                match metadata {
+                    Ok(data) => {
+                        let file_size = data.len();
+                        let response = format!("213 {}\r\n", file_size);
+                        stream.write_all(response.as_bytes()).unwrap();
+                    }
+                    Err(_) => stream.write_all(b"550 File not found.\r\n").unwrap(),
+                }
+            }
             "RETR" => {
                 if parts.len() < 2 {
                     stream
