@@ -91,7 +91,9 @@ fn handle_client(mut stream: TcpStream) {
             }
             "MKD" => {
                 if parts.len() < 2 {
-                    stream.write_all(b"Directory name is needed\r\n").unwrap();
+                    stream
+                        .write_all(b"226 Directory name is needed\r\n")
+                        .unwrap();
                 }
                 let dir = fs::create_dir(parts[1]);
                 match dir {
@@ -105,7 +107,9 @@ fn handle_client(mut stream: TcpStream) {
             }
             "RMD" => {
                 if parts.len() < 2 {
-                    stream.write_all(b"Directory name is needed\r\n").unwrap();
+                    stream
+                        .write_all(b"226 Directory name is needed\r\n")
+                        .unwrap();
                 }
                 let dir = fs::remove_dir_all(parts[1]);
                 match dir {
@@ -119,7 +123,7 @@ fn handle_client(mut stream: TcpStream) {
             }
             "DELE" => {
                 if parts.len() < 2 {
-                    stream.write_all(b"File name is needed\r\n").unwrap();
+                    stream.write_all(b"226 File name is needed\r\n").unwrap();
                 }
                 let dir = fs::remove_file(parts[1]);
                 match dir {
@@ -133,7 +137,7 @@ fn handle_client(mut stream: TcpStream) {
             }
             "SIZE" => {
                 if parts.len() < 2 {
-                    stream.write_all(b"File name is needed\r\n").unwrap();
+                    stream.write_all(b"226 File name is needed\r\n").unwrap();
                 }
                 let metadata = fs::metadata(parts[1]);
                 match metadata {
@@ -145,6 +149,23 @@ fn handle_client(mut stream: TcpStream) {
                     Err(_) => stream.write_all(b"550 File not found.\r\n").unwrap(),
                 }
             }
+            "CWD" => {
+                if parts.len() < 2 {
+                    stream.write_all(b"Directory name is needed\r\n").unwrap();
+                }
+                match env::set_current_dir(parts[1]) {
+                    Ok(_) => stream
+                        .write_all(b"250 Directory changed successfully.\r\n")
+                        .unwrap(),
+                    Err(_) => stream.write_all(b"550 Directory not found.\r\n").unwrap(),
+                }
+            }
+            "CDUP" => match env::set_current_dir("..") {
+                Ok(_) => stream
+                    .write_all(b"250 Directory changed to parent successfully.\r\n")
+                    .unwrap(),
+                Err(_) => stream.write_all(b"550 Directory not found.\r\n").unwrap(),
+            },
             "RETR" => {
                 if parts.len() < 2 {
                     stream
