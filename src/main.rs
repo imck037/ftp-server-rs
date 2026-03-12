@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
 use std::io::{BufRead, BufReader, Write};
+use std::net::Ipv4Addr;
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 
@@ -38,6 +39,34 @@ fn handle_client(mut stream: TcpStream) {
                 let new_stream = handle_pasv(&stream);
                 println!("Client connected to {}", new_stream.peer_addr().unwrap());
             }
+            "PORT" => {
+                if parts.len() < 2 {
+                    stream
+                        .write_all(b"226 File is not specified...\r\n")
+                        .unwrap();
+                    continue;
+                }
+                let ip_port: Vec<&str> = parts[1].split(",").collect();
+                let ip = Ipv4Addr::new(
+                    ip_port[0].parse().unwrap(),
+                    ip_port[1].parse().unwrap(),
+                    ip_port[2].parse().unwrap(),
+                    ip_port[3].parse().unwrap(),
+                );
+                let port1: u16 = ip_port[4].parse().unwrap();
+                let port2: u16 = ip_port[5].parse().unwrap();
+                let port = port1 * 255 + port2;
+                let new_addr = format!("{}:{}", ip, port);
+                let new_stream =
+                    TcpStream::connect(new_addr).expect("Problem connecting the new port");
+                println!(
+                    "Client connected to {}",
+                    new_stream.peer_addr().expect("cannot get the ip addr")
+                );
+                stream
+                    .write_all(b"200 Port command succesfull\r\n")
+                    .unwrap();
+            }
             "PWD" => {
                 let dir = env::current_dir().unwrap();
                 let dir_response = format!("257 \"{}\"\r\n", dir.display());
@@ -45,7 +74,7 @@ fn handle_client(mut stream: TcpStream) {
             }
             "LIST" => {
                 stream
-                    .write_all(b"150 Listing directory and files..")
+                    .write_all(b"150 Listing directory and files..\r\n")
                     .unwrap();
                 let dirs = fs::read_dir(".").unwrap();
                 for dir in dirs {
@@ -57,7 +86,7 @@ fn handle_client(mut stream: TcpStream) {
                     stream.write_all(dirs_response_line.as_bytes()).unwrap();
                 }
                 stream
-                    .write_all(b"\r\n226 Directory fetched successfully.\r\n")
+                    .write_all(b"226 Directory fetched successfully.\r\n")
                     .unwrap();
             }
             "RETR" => {
