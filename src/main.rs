@@ -53,11 +53,11 @@ fn handle_client(mut stream: TcpStream) {
                     let file_name = dir.file_name();
                     let file_name = file_name.to_string_lossy();
 
-                    let dirs_response_line = format!("{}", file_name);
+                    let dirs_response_line = format!("{}  ", file_name);
                     stream.write_all(dirs_response_line.as_bytes()).unwrap();
                 }
                 stream
-                    .write_all(b"226 Directory fetched successfully.\r\n")
+                    .write_all(b"\r\n226 Directory fetched successfully.\r\n")
                     .unwrap();
             }
             "RETR" => {
