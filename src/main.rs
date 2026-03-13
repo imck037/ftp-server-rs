@@ -4,8 +4,15 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::Ipv4Addr;
 use std::net::{TcpListener, TcpStream};
 use std::thread;
+use std::time;
 
-fn handle_client(mut stream: TcpStream) {
+#[derive(Clone, Copy)]
+struct ServerStat {
+    starttime: time::Instant,
+    connected_user: u16,
+}
+
+fn handle_client(mut stream: TcpStream, stat: ServerStat) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     stream.write_all(b"220 The server is ready...\n").unwrap();
 
@@ -33,7 +40,13 @@ fn handle_client(mut stream: TcpStream) {
                 stream.write_all(b"230 Login Successfull.\r\n").unwrap();
             }
             "SYST" => {
-                stream.write_all(b"215 UNIX Type: L8\r\n").unwrap();
+                stream.write_all(b"215 unix type: l8\r\n").unwrap();
+            }
+            "STAT" => {
+                handle_stat(&stream, &stat);
+            }
+            "NOOP" => {
+                stream.write_all(b"200 Command successful.\r\n").unwrap();
             }
             "PASV" => {
                 let new_stream = handle_pasv(&stream);
@@ -215,15 +228,28 @@ fn handle_pasv(mut stream: &TcpStream) -> TcpStream {
     new_stream
 }
 
+fn handle_stat(mut stream: &TcpStream, stat: &ServerStat) {
+    let uptime = stat.starttime.elapsed().as_secs();
+    stream.write_all(b"211-Ftp server status").unwrap();
+    let response = format!("Uptime: {}\r\n", uptime);
+    stream.write_all(response.as_bytes()).unwrap();
+    stream.write_all(b"211 End of status.\r\n").unwrap();
+}
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:2020").expect("Failed to bind...");
     println!("The ftp server is running on port 2020");
+    let mut stat = ServerStat {
+        starttime: time::Instant::now(),
+        connected_user: 0,
+    };
     for stream in listener.incoming() {
         match stream {
             Ok(s) => {
                 println!("Client connected...");
-                thread::spawn(|| {
-                    handle_client(s);
+                stat.connected_user += 1;
+                thread::spawn(move || {
+                    handle_client(s, stat);
                 });
             }
             Err(e) => {
