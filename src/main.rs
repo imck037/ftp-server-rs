@@ -184,15 +184,23 @@ fn handle_client(mut stream: TcpStream, stat: ServerStat) {
                 }
                 let filename = parts[1];
 
-                match fs::read(filename) {
-                    Ok(data) => {
-                        stream.write_all(b"150 opening file\r\n").unwrap();
-                        stream.write_all(&data).unwrap();
-                        stream.write_all(b"\r\n226 transfer complete\r\n").unwrap();
+                if let Some(datastream) = &mut conn.data_connection {
+                    match fs::read(filename) {
+                        Ok(data) => {
+                            stream.write_all(b"150 opening file\r\n").unwrap();
+                            datastream.write_all(&data).unwrap();
+                            stream.write_all(b"226 transfer complete\r\n").unwrap();
+                        }
+                        Err(_) => {
+                            stream.write_all(b"550 file not founc...\r\n").unwrap();
+                        }
                     }
-                    Err(_) => {
-                        stream.write_all(b"550 file not founc...\r\n").unwrap();
-                    }
+                    conn.data_connection = None;
+                } else {
+                    stream
+                        .write_all(b"425 Please use pasv mode to receive file\r\n")
+                        .unwrap();
+                    continue;
                 }
             }
             "QUIT" => {
@@ -202,7 +210,9 @@ fn handle_client(mut stream: TcpStream, stat: ServerStat) {
                 break;
             }
             _ => {
-                stream.write_all(b"502 Command is not specified..").unwrap();
+                stream
+                    .write_all(b"502 Command is not specified..\r\n")
+                    .unwrap();
             }
         }
     }
