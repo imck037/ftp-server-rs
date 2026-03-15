@@ -44,3 +44,4 @@ cargo build --release
 It can be connected from any ftp client. The ftp server is running on localhost and on port 2020.
 ```bash
 ftp 127.0.0.1 2020
+```
