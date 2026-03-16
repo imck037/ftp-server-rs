@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::Read;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
@@ -15,7 +16,7 @@ struct ServerStat {
     connected_user: u16,
 }
 
-fn handle_client(mut stream: TcpStream, stat: ServerStat) {
+fn handle_client(stream: &mut TcpStream, stat: ServerStat) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut conn = Connection {
         data_connection: None,
@@ -70,33 +71,7 @@ fn handle_client(mut stream: TcpStream, stat: ServerStat) {
                 stream.write_all(dir_response.as_bytes()).unwrap();
             }
             "LIST" => {
-                if let Some(data_stream) = &mut conn.data_connection {
-                    stream
-                        .write_all(b"150 Listing directory and files..\r\n")
-                        .unwrap();
-                    let dirs = fs::read_dir(".").unwrap();
-                    for dir in dirs {
-                        let dir = dir.unwrap();
-                        let file_name = dir.file_name();
-                        let file_name = file_name.to_string_lossy();
-
-                        let dirs_response_line = format!("{}\r\n", file_name);
-                        data_stream
-                            .write_all(dirs_response_line.as_bytes())
-                            .unwrap();
-                    }
-                    conn.data_connection = None;
-                } else {
-                    stream
-                        .write_all(
-                            b"425 Data connection is not established consider using PASV\r\n",
-                        )
-                        .unwrap();
-                    continue;
-                }
-                stream
-                    .write_all(b"226 Directory fetched successfully.\r\n")
-                    .unwrap();
+                handle_list(stream, &mut conn);
             }
             "MKD" => {
                 if parts.len() < 2 {
@@ -176,32 +151,10 @@ fn handle_client(mut stream: TcpStream, stat: ServerStat) {
                 Err(_) => stream.write_all(b"550 Directory not found.\r\n").unwrap(),
             },
             "RETR" => {
-                if parts.len() < 2 {
-                    stream
-                        .write_all(b"226 File is not specified...\r\n")
-                        .unwrap();
-                    continue;
-                }
-                let filename = parts[1];
-
-                if let Some(datastream) = &mut conn.data_connection {
-                    match fs::read(filename) {
-                        Ok(data) => {
-                            stream.write_all(b"150 opening file\r\n").unwrap();
-                            datastream.write_all(&data).unwrap();
-                            stream.write_all(b"226 transfer complete\r\n").unwrap();
-                        }
-                        Err(_) => {
-                            stream.write_all(b"550 file not founc...\r\n").unwrap();
-                        }
-                    }
-                    conn.data_connection = None;
-                } else {
-                    stream
-                        .write_all(b"425 Please use pasv mode to receive file\r\n")
-                        .unwrap();
-                    continue;
-                }
+                handle_retr(stream, &mut conn, parts);
+            }
+            "STOR" => {
+                handle_store(stream, &mut conn, parts);
             }
             "QUIT" => {
                 stream
@@ -242,6 +195,88 @@ fn handle_stat(mut stream: &TcpStream, stat: &ServerStat) {
     stream.write_all(b"211 End of status.\r\n").unwrap();
 }
 
+fn handle_store(stream: &mut TcpStream, conn: &mut Connection, parts: Vec<&str>) {
+    if parts.len() < 2 {
+        stream
+            .write_all(b"226 File is not specified...\r\n")
+            .unwrap();
+        return;
+    }
+    if let Some(datastream) = &mut conn.data_connection {
+        stream
+            .write_all(b"150 Opening Data Connection.\r\n")
+            .unwrap();
+        if let Ok(mut file_buffer) = fs::File::create(parts[1]) {
+            let mut buffer = String::new();
+            datastream.read_to_string(&mut buffer).unwrap();
+            file_buffer.write_all(buffer.as_bytes()).unwrap();
+            stream.write_all(b"226 Transfer complete.\r\n").unwrap();
+            conn.data_connection = None;
+        } else {
+            stream.write_all(b"550 Cannot create file.\r\n").unwrap();
+        }
+    } else {
+        stream
+            .write_all(b"425 Cannot Open Data Connection Please Use PASV.\r\n")
+            .unwrap();
+    }
+}
+
+fn handle_retr(stream: &mut TcpStream, conn: &mut Connection, parts: Vec<&str>) {
+    if parts.len() < 2 {
+        stream
+            .write_all(b"226 File is not specified...\r\n")
+            .unwrap();
+        return;
+    }
+    let filename = &parts[1];
+
+    if let Some(datastream) = &mut conn.data_connection {
+        match fs::read(filename) {
+            Ok(data) => {
+                stream.write_all(b"150 opening file\r\n").unwrap();
+                datastream.write_all(&data).unwrap();
+                stream.write_all(b"226 transfer complete\r\n").unwrap();
+            }
+            Err(_) => {
+                stream.write_all(b"550 file not founc...\r\n").unwrap();
+            }
+        }
+        conn.data_connection = None;
+    } else {
+        stream
+            .write_all(b"425 Please use pasv mode to receive file\r\n")
+            .unwrap();
+    }
+}
+
+fn handle_list(stream: &mut TcpStream, conn: &mut Connection) {
+    if let Some(data_stream) = &mut conn.data_connection {
+        stream
+            .write_all(b"150 Listing directory and files..\r\n")
+            .unwrap();
+        let dirs = fs::read_dir(".").unwrap();
+        for dir in dirs {
+            let dir = dir.unwrap();
+            let file_name = dir.file_name();
+            let file_name = file_name.to_string_lossy();
+
+            let dirs_response_line = format!("{}\r\n", file_name);
+            data_stream
+                .write_all(dirs_response_line.as_bytes())
+                .unwrap();
+        }
+        stream
+            .write_all(b"226 Directory fetched successfully.\r\n")
+            .unwrap();
+        conn.data_connection = None;
+    } else {
+        stream
+            .write_all(b"425 Data connection is not established consider using PASV\r\n")
+            .unwrap();
+    }
+}
+
 fn main() {
     let listener = TcpListener::bind("127.0.0.1:2020").expect("Failed to bind...");
     println!("The ftp server is running on port 2020");
@@ -251,11 +286,11 @@ fn main() {
     };
     for stream in listener.incoming() {
         match stream {
-            Ok(s) => {
+            Ok(mut s) => {
                 println!("Client connected...");
                 stat.connected_user += 1;
                 thread::spawn(move || {
-                    handle_client(s, stat);
+                    handle_client(&mut s, stat);
                 });
             }
             Err(e) => {
