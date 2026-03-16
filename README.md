@@ -1,9 +1,15 @@
 # FTP Server
 This is an RFC 959 standard FTP server buit on rust. 
-This server is consists of all the fetures of an FTP server based on RFC 959 Standard. It's send the response using both the control connection and data connection like an standard server.
-The server is currently written for running on localhost and port 2020 and can be connected from any standard ftp client or custom made ftp client which contains the bellow mentioned command.
+This server is consists of all the fetures of an FTP server based on RFC 959 Standard.
+
+- Both Control Connection and Data Connection is featured.
+- User Authentication is implemented using inbuilt session.
+- The server can be connected and used by any standard FTP client (Fileailla, Gnu inetutils ftp client)
+- It can be used by any custom made client with raw ftp commands and it has inbuilt user authentication system that allow the server to work properly using user session.
+
 
 ## Currently Implemented command
+Right now it support almost every command that an ftp server need to operate.
 ### Connection and Authentication
 1. USER
 2. PASS
@@ -20,11 +26,13 @@ The server is currently written for running on localhost and port 2020 and can b
 1. DELE
 2. LIST
 3. RETR
+4. STOR
 
 ### Data Connection
 1. PASV
 2. PORT
-##### PORT command is removed and redirected to use pasv as most firewall dont allow the connection.
+
+PORT command is removed and redirected to use pasv as most firewall dont allow the connection.
 
 ### Status and Control
 1. SYST
