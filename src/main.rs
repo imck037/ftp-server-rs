@@ -1,10 +1,17 @@
 use std::env;
 use std::fs;
+use std::io;
 use std::io::Read;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::thread;
 use std::time;
+
+#[derive(Clone)]
+struct UserInfo {
+    username: String,
+    password: String,
+}
 
 struct Connection {
     data_connection: Option<TcpStream>,
@@ -16,7 +23,7 @@ struct ServerStat {
     connected_user: u16,
 }
 
-fn handle_client(stream: &mut TcpStream, stat: ServerStat) {
+fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut conn = Connection {
         data_connection: None,
@@ -39,12 +46,10 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat) {
 
         match parts[0].to_uppercase().as_str() {
             "USER" => {
-                stream
-                    .write_all(b"331 Username is correct. Enter password for authentication.\r\n")
-                    .unwrap();
+                handle_username(stream, parts, userinfo.clone());
             }
             "PASS" => {
-                stream.write_all(b"230 Login Successfull.\r\n").unwrap();
+                handle_pass(stream, parts, userinfo.clone());
             }
             "SYST" => {
                 stream.write_all(b"215 unix type: l8\r\n").unwrap();
@@ -172,6 +177,24 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat) {
     println!("Client disconnect..");
 }
 
+fn handle_username(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo) {
+    if userinfo.username == parts[1] {
+        stream
+            .write_all(b"331 Username is Ok. Password needed.")
+            .unwrap();
+    } else {
+        stream.write_all(b"530 Wrong username.\r\n").unwrap();
+    }
+}
+
+fn handle_pass(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo) {
+    if userinfo.password == parts[1] {
+        stream.write_all(b"230 Login Successfull.").unwrap();
+    } else {
+        stream.write_all(b"550 Wrong Password.").unwrap();
+    }
+}
+
 fn handle_pasv(mut stream: &TcpStream) -> TcpStream {
     let data_socket = TcpListener::bind("0.0.0.0:0").expect("Unable open new port.");
 
@@ -277,7 +300,26 @@ fn handle_list(stream: &mut TcpStream, conn: &mut Connection) {
     }
 }
 
+fn create_users() -> UserInfo {
+    let mut username = String::new();
+    let mut password = String::new();
+
+    println!("Create a new user....");
+    print!("enter the username: ");
+    io::stdout().flush().unwrap();
+    io::stdin().read_line(&mut username).unwrap();
+    print!("enter the password: ");
+    io::stdout().flush().unwrap();
+    io::stdin().read_line(&mut password).unwrap();
+
+    println!("Server Configured.....");
+    UserInfo { username, password }
+}
+
 fn main() {
+    println!("Configuring the server...");
+    let config = create_users();
+
     let listener = TcpListener::bind("127.0.0.1:2020").expect("Failed to bind...");
     println!("The ftp server is running on port 2020");
     let mut stat = ServerStat {
@@ -288,9 +330,10 @@ fn main() {
         match stream {
             Ok(mut s) => {
                 println!("Client connected...");
+                let config = config.clone();
                 stat.connected_user += 1;
                 thread::spawn(move || {
-                    handle_client(&mut s, stat);
+                    handle_client(&mut s, stat, config);
                 });
             }
             Err(e) => {
