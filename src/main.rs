@@ -23,11 +23,16 @@ struct ServerStat {
     connected_user: u16,
 }
 
+struct UserSession {
+    verified: bool,
+}
+
 fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
     let mut reader = BufReader::new(stream.try_clone().unwrap());
     let mut conn = Connection {
         data_connection: None,
     };
+    let mut session = UserSession { verified: false };
     stream.write_all(b"220 The server is ready...\n").unwrap();
 
     loop {
@@ -41,16 +46,33 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
         if parts.is_empty() {
             continue;
         }
+        let command_parts = parts.clone();
 
         println!("Command: {command}");
+        if session.verified == false {
+            match command_parts[0].to_uppercase().as_str() {
+                "USER" => {
+                    handle_username(stream, command_parts, userinfo.clone());
+                }
+                "PASS" => {
+                    handle_pass(stream, command_parts, userinfo.clone(), &mut session);
+                }
+                "QUIT" => {
+                    stream
+                        .write_all(b"221 leaving the ftp server....\r\n")
+                        .unwrap();
+                    break;
+                }
+                _ => {
+                    stream
+                        .write_all(b"530 Please Login using USER and PASS\r\n")
+                        .unwrap();
+                }
+            }
+            continue;
+        }
 
         match parts[0].to_uppercase().as_str() {
-            "USER" => {
-                handle_username(stream, parts, userinfo.clone());
-            }
-            "PASS" => {
-                handle_pass(stream, parts, userinfo.clone());
-            }
             "SYST" => {
                 stream.write_all(b"215 unix type: l8\r\n").unwrap();
             }
@@ -188,8 +210,14 @@ fn handle_username(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo)
     }
 }
 
-fn handle_pass(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo) {
+fn handle_pass(
+    stream: &mut TcpStream,
+    parts: Vec<&str>,
+    userinfo: UserInfo,
+    session: &mut UserSession,
+) {
     if userinfo.password == parts[1].to_string().trim() {
+        session.verified = true;
         stream.write_all(b"230 Login Successfull.\r\n").unwrap();
     } else {
         stream.write_all(b"550 Wrong Password.\r\n").unwrap();
