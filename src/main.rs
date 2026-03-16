@@ -178,20 +178,21 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
 }
 
 fn handle_username(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo) {
-    if userinfo.username == parts[1] {
+    if userinfo.username == parts[1].to_string().trim() {
         stream
-            .write_all(b"331 Username is Ok. Password needed.")
+            .write_all(b"331 Username is Ok. Password needed.\r\n")
             .unwrap();
     } else {
+        println!("{:?}", parts[1]);
         stream.write_all(b"530 Wrong username.\r\n").unwrap();
     }
 }
 
 fn handle_pass(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo) {
-    if userinfo.password == parts[1] {
-        stream.write_all(b"230 Login Successfull.").unwrap();
+    if userinfo.password == parts[1].to_string().trim() {
+        stream.write_all(b"230 Login Successfull.\r\n").unwrap();
     } else {
-        stream.write_all(b"550 Wrong Password.").unwrap();
+        stream.write_all(b"550 Wrong Password.\r\n").unwrap();
     }
 }
 
@@ -313,7 +314,10 @@ fn create_users() -> UserInfo {
     io::stdin().read_line(&mut password).unwrap();
 
     println!("Server Configured.....");
-    UserInfo { username, password }
+    UserInfo {
+        username: username.trim().to_string(),
+        password: password.trim().to_string(),
+    }
 }
 
 fn main() {
