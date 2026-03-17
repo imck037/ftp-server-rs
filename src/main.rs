@@ -25,6 +25,7 @@ struct ServerStat {
 
 struct UserSession {
     verified: bool,
+    rename_from: Option<String>,
 }
 
 fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
@@ -32,7 +33,10 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
     let mut conn = Connection {
         data_connection: None,
     };
-    let mut session = UserSession { verified: false };
+    let mut session = UserSession {
+        verified: false,
+        rename_from: None,
+    };
     stream.write_all(b"220 The server is ready...\n").unwrap();
 
     loop {
@@ -183,6 +187,12 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
             "STOR" => {
                 handle_store(stream, &mut conn, parts);
             }
+            "RNFR" => {
+                handle_rename_from(stream, parts, &mut session);
+            }
+            "RNTO" => {
+                handle_rename_to(stream, parts, &mut session);
+            }
             "QUIT" => {
                 stream
                     .write_all(b"221 leaving the ftp server....\r\n")
@@ -197,6 +207,39 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
         }
     }
     println!("Client disconnect..");
+}
+
+fn handle_rename_from(stream: &mut TcpStream, parts: Vec<&str>, session: &mut UserSession) {
+    if parts.len() < 2 {
+        stream.write_all(b"226 File name needed..\r\n").unwrap();
+        return;
+    }
+    let filename = parts[1];
+    if fs::exists(parts[1]).unwrap() {
+        stream.write_all(b"350 Ready for RNTO\r\n").unwrap();
+        session.rename_from = Some(filename.to_string());
+    } else {
+        stream.write_all(b"550 File not found.\r\n").unwrap();
+    }
+}
+
+fn handle_rename_to(stream: &mut TcpStream, parts: Vec<&str>, session: &mut UserSession) {
+    if parts.len() < 2 {
+        stream.write_all(b"226 File name needed..\r\n").unwrap();
+        return;
+    }
+    if let Some(filename) = &mut session.rename_from {
+        if let Ok(_) = fs::rename(filename, parts[1]) {
+            stream.write_all(b"250 Rename Succesfull.\r\n").unwrap();
+        } else {
+            stream.write_all(b"550 Rename Failed.\r\n").unwrap();
+        }
+        session.rename_from = None;
+    } else {
+        stream
+            .write_all(b"503 Bad Sequence RNFR not given\r\n")
+            .unwrap();
+    }
 }
 
 fn handle_username(stream: &mut TcpStream, parts: Vec<&str>, userinfo: UserInfo) {
@@ -291,7 +334,7 @@ fn handle_retr(stream: &mut TcpStream, conn: &mut Connection, parts: Vec<&str>) 
                 stream.write_all(b"226 transfer complete\r\n").unwrap();
             }
             Err(_) => {
-                stream.write_all(b"550 file not founc...\r\n").unwrap();
+                stream.write_all(b"550 file not found...\r\n").unwrap();
             }
         }
         conn.data_connection = None;
