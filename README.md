@@ -27,6 +27,8 @@ Right now it support almost every command that an ftp server need to operate.
 2. LIST
 3. RETR
 4. STOR
+5. RNFR
+6. RNTO
 
 ### Data Connection
 1. PASV
