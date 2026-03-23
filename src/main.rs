@@ -4,6 +4,7 @@ use std::io;
 use std::io::Read;
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
+use std::process::Command;
 use std::thread;
 use std::time;
 
@@ -382,7 +383,9 @@ fn create_users() -> UserInfo {
     io::stdin().read_line(&mut username).unwrap();
     print!("enter the password: ");
     io::stdout().flush().unwrap();
+    Command::new("stty").arg("-echo").status().unwrap();
     io::stdin().read_line(&mut password).unwrap();
+    Command::new("stty").arg("echo").status().unwrap();
 
     println!("Server Configured.....");
     UserInfo {
