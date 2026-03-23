@@ -375,23 +375,43 @@ fn handle_list(stream: &mut TcpStream, conn: &mut Connection) {
 
 fn create_users() -> UserInfo {
     let mut username = String::new();
-    let mut password = String::new();
 
     println!("Create a new user....");
     print!("enter the username: ");
     io::stdout().flush().unwrap();
     io::stdin().read_line(&mut username).unwrap();
-    print!("enter the password: ");
-    io::stdout().flush().unwrap();
-    Command::new("stty").arg("-echo").status().unwrap();
-    io::stdin().read_line(&mut password).unwrap();
-    Command::new("stty").arg("echo").status().unwrap();
+
+    let password = get_password();
 
     println!("Server Configured.....");
     UserInfo {
         username: username.trim().to_string(),
         password: password.trim().to_string(),
     }
+}
+
+fn get_password() -> String {
+    let mut password = String::new();
+    let mut confirmed_password = String::new();
+
+    print!("Enter the password: ");
+    io::stdout().flush().unwrap();
+    Command::new("stty").arg("-echo").status().unwrap();
+    io::stdin().read_line(&mut password).unwrap();
+    Command::new("stty").arg("echo").status().unwrap();
+
+    print!("\nConfirm the password: ");
+    io::stdout().flush().unwrap();
+    Command::new("stty").arg("-echo").status().unwrap();
+    io::stdin().read_line(&mut confirmed_password).unwrap();
+    Command::new("stty").arg("echo").status().unwrap();
+
+    if password.trim() != confirmed_password.trim() {
+        println!("\nPassword does not match! Try Again.");
+        password = get_password();
+    }
+
+    password
 }
 
 fn main() {
