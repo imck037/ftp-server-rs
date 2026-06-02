@@ -417,11 +417,19 @@ fn get_password() -> String {
 fn get_directory() {
     let mut entry = String::new();
 
-    print!("Enter the directory you want to open as server: ");
+    print!("Enter the directory you want to open as server (Enter . or leave empty for current folder): ");
     io::stdout().flush().unwrap();
     io::stdin().read_line(&mut entry).unwrap();
 
-    if fs::exists(&entry.trim()).unwrap(){
+    if entry.is_empty() {
+        return;
+    }
+
+    if entry.trim() == "." {
+        return;
+    }
+
+    if fs::exists(entry.trim()).unwrap(){
         println!("Directory configured successfuly.");
     }
     else {
