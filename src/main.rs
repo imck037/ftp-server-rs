@@ -421,7 +421,7 @@ fn get_directory() {
     io::stdout().flush().unwrap();
     io::stdin().read_line(&mut entry).unwrap();
 
-    if entry.is_empty() {
+    if entry.trim().is_empty() {
         return;
     }
 
