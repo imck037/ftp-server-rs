@@ -414,9 +414,27 @@ fn get_password() -> String {
     password
 }
 
+fn get_directory() {
+    let mut entry = String::new();
+
+    print!("Enter the directory you want to open as server: ");
+    io::stdout().flush().unwrap();
+    io::stdin().read_line(&mut entry).unwrap();
+
+    if fs::exists(&entry.trim()).unwrap(){
+        println!("Directory configured successfuly.");
+    }
+    else {
+        println!("Directory does not exist. Try Again.");
+        get_directory();
+    }
+    env::set_current_dir(entry.trim()).unwrap();
+}
+
 fn main() {
     println!("Configuring the server...");
     let config = create_users();
+    get_directory();
 
     let listener = TcpListener::bind("127.0.0.1:2020").expect("Failed to bind...");
     println!("The ftp server is running on port 2020");
