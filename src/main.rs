@@ -54,7 +54,7 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
         let command_parts = parts.clone();
 
         println!("Command: {command}");
-        if session.verified == false {
+        if !session.verified {
             match command_parts[0].to_uppercase().as_str() {
                 "USER" => {
                     handle_username(stream, command_parts, userinfo.clone());
@@ -82,13 +82,13 @@ fn handle_client(stream: &mut TcpStream, stat: ServerStat, userinfo: UserInfo) {
                 stream.write_all(b"215 unix type: l8\r\n").unwrap();
             }
             "STAT" => {
-                handle_stat(&stream, &stat);
+                handle_stat(stream, &stat);
             }
             "NOOP" => {
                 stream.write_all(b"200 Command successful.\r\n").unwrap();
             }
             "PASV" => {
-                let new_stream = handle_pasv(&stream);
+                let new_stream = handle_pasv(stream);
                 conn.data_connection = Some(new_stream);
             }
             "PORT" => {
@@ -230,7 +230,7 @@ fn handle_rename_to(stream: &mut TcpStream, parts: Vec<&str>, session: &mut User
         return;
     }
     if let Some(filename) = &mut session.rename_from {
-        if let Ok(_) = fs::rename(filename, parts[1]) {
+        if fs::rename(filename, parts[1]).is_ok() {
             stream.write_all(b"250 Rename Succesfull.\r\n").unwrap();
         } else {
             stream.write_all(b"550 Rename Failed.\r\n").unwrap();
@@ -431,8 +431,7 @@ fn get_directory() {
 
     if fs::exists(entry.trim()).unwrap(){
         println!("Directory configured successfuly.");
-    }
-    else {
+    } else {
         println!("Directory does not exist. Try Again.");
         get_directory();
     }
